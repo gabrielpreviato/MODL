@@ -1,0 +1,6 @@
+*.pyc
+*.png
+
+.venv/
+__pycache__/
+weights/
