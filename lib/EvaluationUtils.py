@@ -323,16 +323,16 @@ def get_detected_obstacles_from_detector_multiclass_2(prediction, confidence_thr
     variance = prediction[0, :, 7] * confidence * 19.75 * 1000  # J-MOD2 was trained with normalized variances scaled
     # down by 1000
 
-    img_width = 256
-    img_height = 160
+    img_width = 256 * 4
+    img_height = 160 * 4
 
     detected_obstacles = []
 
     for i in range(0, prediction.shape[1]):
         if confidence[i] > 0:
             # 32 e 8 sono numeri hardcoded rappresentat
-            x_top_left = int(np.floor(np.floor((int(i % 8) + x_pos[i]) * 32) - (ws[i] * img_width / 2)))
-            y_top_left = int(np.floor(((np.floor(i / 8) + y_pos[i]) * 32) - (hs[i] * img_height / 2)))
+            x_top_left = int(np.floor(np.floor((int(i % 16) + x_pos[i]) * 64) - (ws[i] * img_width / 2)))
+            y_top_left = int(np.floor(((np.floor(i / 16) + y_pos[i]) * 64) - (hs[i] * img_height / 2)))
             w = ws[i] * img_width
             h = hs[i] * img_height
 

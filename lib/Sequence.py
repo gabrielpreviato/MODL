@@ -60,7 +60,7 @@ class Sequence(object):
         plt.close()
 
 class PixelwiseSequence(object):
-    def __init__(self, input_directory, extension, gt_directory, is_grayscale = False, name='Sequence'):
+    def __init__(self, input_directory, extension, gt_directory, is_grayscale = False, name='Sequence', label_extension='png'):
 
         self.sequence_name = name
         self.sequence_dir = input_directory
@@ -70,7 +70,7 @@ class PixelwiseSequence(object):
         self.label_paths = []
 
         self.load_img_paths(extension)
-        self.load_label_paths(extension)
+        self.load_label_paths(label_extension)
 
     def load_img_paths(self, extension):
         self.image_paths = sorted(glob(os.path.join(self.sequence_dir, '*' + '.' + extension)))
@@ -121,12 +121,13 @@ class PixelwiseSequence(object):
         plt.close()
 
 class PixelwiseSequenceWithObstacles(PixelwiseSequence):
-    def __init__(self, input_directory, extension, gt_directory, obstacles_directory, is_grayscale=False, name='Sequence'):
+    def __init__(self, input_directory, extension, gt_directory, obstacles_directory, obs_extension='txt', img_extension='png', label_extension='pfm', is_grayscale=False, name='Sequence'):
         self.obstacles_dir = obstacles_directory
-        self.load_obstacles_paths(extension='txt')
-        super(PixelwiseSequenceWithObstacles, self).__init__(input_directory, extension, gt_directory, is_grayscale, name)
+        self.load_obstacles_paths(extension=obs_extension)
+        super(PixelwiseSequenceWithObstacles, self).__init__(input_directory, img_extension, gt_directory, is_grayscale, name, label_extension=label_extension)
     def load_obstacles_paths(self, extension):
         self.obstacles_paths = sorted(glob(os.path.join(self.obstacles_dir, '*' + '.' + extension)))
+        # print("obstacles_paths:", self.obstacles_paths)
     def get_labels(self):
         return (self.label_paths, self.obstacles_paths)
 

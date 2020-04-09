@@ -5,8 +5,8 @@ from config import get_config
 
 
 def root_mean_squared_logarithmic_loss(y_true, y_pred):
-    y_true = tf.Print(y_true, [y_true], message='y_true', summarize=30)
-    y_pred = tf.Print(y_pred, [y_pred], message='y_pred', summarize=30)
+    # y_true = tf.Print(y_true, [y_true], message='y_true', summarize=30)
+    # y_pred = tf.Print(y_pred, [y_pred], message='y_pred', summarize=30)
     first_log = K.log(K.clip(y_pred, K.epsilon(), None) + 1.)
     second_log = K.log(K.clip(y_true, K.epsilon(), None) + 1.)
 
@@ -63,8 +63,8 @@ def eigen_loss(y_true, y_pred):
     return log_term - (0.5 * sc_inv_term) + grad_loss
 
 def log_normals_loss(y_true, y_pred):
-    y_true = tf.Print(y_true, [y_true], message='y_true', summarize=30)
-    y_pred = tf.Print(y_pred, [y_pred], message='y_pred', summarize=30)
+    # y_true = tf.Print(y_true, [y_true], message='y_true', summarize=30)
+    # y_pred = tf.Print(y_pred, [y_pred], message='y_pred', summarize=30)
 
     #compute normals with convolution approach
     # (http://answers.opencv.org/question/82453/calculate-surface-normals-from-depth-image-using-neighboring-pixels-cross-product/)
@@ -135,8 +135,8 @@ def log_normals_loss(y_true, y_pred):
     #dot_term_y = K.mean(K.sum(normals[:, :, :, :] * grad_y[:, :, :, :], axis=-1, keepdims=True), axis=-1)
 
 
-    dot_term_x = tf.Print(dot_term_x, [dot_term_x], message='dot_term_x', summarize=30)
-    dot_term_y = tf.Print(dot_term_y, [dot_term_y], message='dot_term_y', summarize=30)
+    # dot_term_x = tf.Print(dot_term_x, [dot_term_x], message='dot_term_x', summarize=30)
+    # dot_term_y = tf.Print(dot_term_y, [dot_term_y], message='dot_term_y', summarize=30)
 
     #commentare per vecchia versione
     sc_inv_term = K.square(K.mean((first_log - second_log), axis=-1))
@@ -145,6 +145,8 @@ def log_normals_loss(y_true, y_pred):
     diff_x = dzdx_pred - dzdx
     diff_y = dzdy_pred - dzdy
     grad_loss = K.mean(K.square(diff_x) + K.square(diff_y), axis=-1)
+
+    print("log_term:", log_term)
 
     loss = log_term - (0.5 * sc_inv_term) + norm_term #+ grad_loss
     #loss = log_term + K.square(dot_term_x) + K.square(dot_term_y)

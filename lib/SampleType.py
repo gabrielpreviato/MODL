@@ -3,9 +3,10 @@ import cv2
 import scipy.io as sio
 from scipy import ndimage
 import random
+import json
 
 from lib.Classes import Classes
-
+from utils.pfm import load_pfm
 
 class AbstractSample(object):
 
@@ -98,18 +99,38 @@ class DepthObstacles_SingleFrame(AbstractSample):
 class DepthObstacles_SingleFrame_Multiclass_2(DepthObstacles_SingleFrame):
 
     def read_labels(self):
-        depth_label = cv2.imread(self.depth_gt[0], cv2.IMREAD_GRAYSCALE)
+        # depth_label = cv2.imread(self.depth_gt[0], cv2.IMREAD_GRAYSCALE)
+        depth_label = load_pfm(self.depth_gt[0])
+        # print("depth_label:", depth_label)
 
         # leggi file di testo
 
+        # with open(self.obstacles_gt[0], 'r') as f:
+        #     obstacles = f.readlines()
+        # obstacles = [x.strip() for x in obstacles]
         with open(self.obstacles_gt[0], 'r') as f:
-            obstacles = f.readlines()
-        obstacles = [x.strip() for x in obstacles]
+            print("file:", self.obstacles_gt[0])
+            obstacles_json = json.load(f)
+        
+        obstacles = []
+        for obs_json in obstacles_json["objects"]:
+            obstacles.append([
+                obs_json["x_cell"],
+                obs_json["y_cell"],
+                obs_json["x_cell_position"],
+                obs_json["y_cell_position"],
+                obs_json["width"],
+                obs_json["height"],
+                obs_json["mean"],
+                obs_json["std"],
+                obs_json["label"]
+            ])
 
-        obstacles_label = np.zeros(shape=(5, 8, 8))
+        obstacles_label = np.zeros(shape=(10, 16, 8))
 
         for obs in obstacles:
-            parsed_str_obs = obs.split(" ")
+            # parsed_str_obs = obs.split(" ")
+            parsed_str_obs = obs
             parsed_obs = np.zeros(shape=9)
             i = 0
             for n in parsed_str_obs:
@@ -123,18 +144,20 @@ class DepthObstacles_SingleFrame_Multiclass_2(DepthObstacles_SingleFrame):
                     parsed_obs[i] = float(n)
                 i += 1
 
-            if parsed_obs[8] == 2:
-                continue
+            # AVOID GOAL
+            # if parsed_obs[8] == 2:
+            #     continue
 
-            obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 0] = 1.0 if parsed_obs[8] == 0 else 0.0  # class 1 (3/4)
-            obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 1] = 1.0 if parsed_obs[8] == 1 else 0.0  # class 2
+            obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 0] = 1.0 if parsed_obs[8] == 1 else 0.0  # class 1 (ball)
+            obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 1] = 1.0 if parsed_obs[8] == 2 else 0.0  # class 2 (goal)
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 2] = parsed_obs[2]  # x
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 3] = parsed_obs[3]  # y
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 4] = parsed_obs[4]  # w
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 5] = parsed_obs[5]  # h
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 6] = parsed_obs[6] * 0.1  # m
             obstacles_label[int(parsed_obs[1]), int(parsed_obs[0]), 7] = parsed_obs[7] * 0.1  # v
-        labels = {"depth": np.expand_dims(depth_label, 2), "obstacles": np.reshape(obstacles_label, (40, 8))}
+        labels = {"depth": np.expand_dims(depth_label, 2), "obstacles": np.reshape(obstacles_label, (16*10, 8))}
+        # labels = {"depth": depth_label, "obstacles": np.reshape(obstacles_label, (16*9, 8))}
 
         return labels
 

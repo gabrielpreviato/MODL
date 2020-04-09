@@ -1,7 +1,8 @@
 import tensorflow as tf
 from keras.models import Model
-from keras.layers import Convolution2D, Input, Conv2DTranspose
+from keras.layers import Convolution2D, Input, Conv2DTranspose, MaxPooling2D, Conv2D
 from keras.applications.vgg19 import VGG19
+from keras.applications.resnet50 import ResNet50
 
 from keras.layers.advanced_activations import PReLU,LeakyReLU
 
@@ -54,29 +55,41 @@ class DepthFCNModel(FullyConvolutionalModel):
                              self.config.input_width,
                              self.config.input_channel), name='input')
 
-        vgg19model = VGG19(include_top=False, weights='imagenet', input_tensor=input,
+        # vgg19model = VGG19(include_top=False, weights='imagenet', input_tensor=input,
+        #                    input_shape=(self.config.input_height,
+        #                                 self.config.input_width,
+        #                                 self.config.input_channel
+        #                                 ),
+        #                     )
+        vgg19model = ResNet50(include_top=False, weights='imagenet', input_tensor=input,
                            input_shape=(self.config.input_height,
                                         self.config.input_width,
                                         self.config.input_channel
-                                        ))
+                                        ),
+                            )
 
-        # for layer in vgg19model.layers[0:12]:
+        # for layer in vgg19model.layers:
         #    layer.trainable = False
 
         vgg19model.layers.pop()
 
         output = vgg19model.layers[-1].output
 
+        # output = MaxPooling2D()(output)
+        # output = Conv2D(256, (3, 3), activation='relu', padding='same', name='block6_conv1')(output)
+
         # output = Dropout(0.15)(output)
 
-        x = Conv2DTranspose(128, (4, 4), padding="same", strides=(2, 2))(output)
+        x = Conv2DTranspose(64, (4, 4), padding="same", strides=(2, 2))(output)
         x = PReLU()(x)
-        x = Conv2DTranspose(64, (4, 4), padding="same", strides=(2, 2))(x)
-        x = PReLU()(x)
-        # x = GaussianDropout(0.2)(x)
         x = Conv2DTranspose(32, (4, 4), padding="same", strides=(2, 2))(x)
         x = PReLU()(x)
         x = Conv2DTranspose(16, (4, 4), padding="same", strides=(2, 2))(x)
+        x = PReLU()(x)
+        # x = GaussianDropout(0.2)(x)
+        x = Conv2DTranspose(8, (4, 4), padding="same", strides=(2, 2))(x)
+        x = PReLU()(x)
+        x = Conv2DTranspose(2, (4, 4), padding="same", strides=(2, 2))(x)
         x = PReLU()(x)
         out = Convolution2D(1, (5, 5), padding="same", activation="relu", name="depth_output")(x)
 

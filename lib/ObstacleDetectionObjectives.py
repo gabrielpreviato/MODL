@@ -127,6 +127,7 @@ def recall_multiclass_3(y_true, y_pred):
 
 
 def recall_multiclass_2(y_true, y_pred):
+    print("recall_multiclass_2")
     truth_conf_tensor = K.expand_dims(y_true[:, :, 0:2], 2)  # tf.slice(y_true, [0, 0, 0], [-1,-1, 0])
     truth_xy_tensor = y_true[:, :, 2:4]  # tf.slice(y_true, [0, 0, 1], [-1,-1, 2])
     truth_wh_tensor = y_true[:, :, 4:6]  # tf.slice(y_true, [0, 0, 3], [-1, -1, 4])
@@ -140,6 +141,14 @@ def recall_multiclass_2(y_true, y_pred):
     tens = tf.reduce_any(tens, axis=-1)
 
     pred_conf_tensor = tf.reduce_max(pred_conf_tensor, axis=-1)
+
+    tf.print("######## RECALL ########")
+    tf.print(pred_conf_tensor)
+    tf.print(tens)
+    truth_xy_tensor = tf.Print(truth_xy_tensor, [pred_conf_tensor], message='pred_conf_tensor')
+    truth_xy_tensor = tf.Print(truth_xy_tensor, [tens], message='tens')
+    tens_max = tf.reduce_any(tens)
+    truth_xy_tensor = tf.Print(truth_xy_tensor, [tens_max], message='tens_max')
 
     ave_iou, recall, precision, obj_count, intersection, union, ow, oh, x, y, w, h = iou(truth_xy_tensor[:, :, 0],
                                                                                          truth_xy_tensor[:, :, 1],
@@ -429,12 +438,14 @@ def iou(x_true, y_true, w_true, h_true, x_pred, y_pred, w_pred, h_pred, t, pred_
     w_pred = K.expand_dims(w_pred, 2)
     h_pred = K.expand_dims(h_pred, 2)
 
+    # a = list(range(0, 8)) * 5
+    a = list(range(0, 16)) * 10
+    b = sorted([i for i in 16 * [j for j in range(0, 10)]])
+
     xoffset = K.expand_dims(tf.convert_to_tensor(np.asarray(
-        [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4,
-         5, 6, 7], dtype=np.float32)), 1)
+        a, dtype=np.float32)), 1)
     yoffset = K.expand_dims(tf.convert_to_tensor(np.asarray(
-        [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4,
-         4, 4, 4], dtype=np.float32)), 1)
+        b, dtype=np.float32)), 1)
 
     # xoffset = K.cast_to_floatx((np.tile(np.arange(side),side)))
     # yoffset = K.cast_to_floatx((np.repeat(np.arange(side),side)))
@@ -443,13 +454,13 @@ def iou(x_true, y_true, w_true, h_true, x_pred, y_pred, w_pred, h_pred, t, pred_
     w = tf.where(t, w_pred, K.zeros_like(w_pred))
     h = tf.where(t, h_pred, K.zeros_like(h_pred))
 
-    ow = overlap(x + xoffset, w * 256., x_true + xoffset, w_true * 256.)
-    oh = overlap(y + yoffset, h * 160., y_true + yoffset, h_true * 256.)
+    ow = overlap(x + xoffset, w * 4*256., x_true + xoffset, w_true * 4*256.)
+    oh = overlap(y + yoffset, h * 4*160., y_true + yoffset, h_true * 4*160.)
 
     ow = tf.where(K.greater(ow, 0), ow, K.zeros_like(ow))
     oh = tf.where(K.greater(oh, 0), oh, K.zeros_like(oh))
     intersection = ow * oh
-    union = w * 256. * h * 160. + w_true * 256. * h_true * 160. - intersection + K.epsilon()  # prevent div 0
+    union = w * 4*256. * h *4* 160. + w_true * 4*256. * h_true *4* 160. - intersection + K.epsilon()  # prevent div 0
 
     #
     # find best iou among bboxs
@@ -708,8 +719,8 @@ def yolo_v1_loss_multiclass_2(y_true, y_pred):
     pred_m_tensor = K.expand_dims(y_pred[:, :, 6], 2)  # tf.slice(y_pred, [0, 0, 5], [-1, -1, 5])
     pred_v_tensor = K.expand_dims(y_pred[:, :, 7], 2)  # tf.slice(y_pred, [0, 0, 6], [-1, -1, 6])
 
-    truth_xy_tensor = tf.Print(truth_xy_tensor, [truth_xy_tensor[:, 14:20, 0]], message='truth_xy', summarize=30)
-    pred_xy_tensor = tf.Print(pred_xy_tensor, [pred_xy_tensor[:, 14:20, 0]], message='pred_xy', summarize=30)
+    # truth_xy_tensor = tf.Print(truth_xy_tensor, [truth_xy_tensor[:, 14:20, 0]], message='truth_xy', summarize=30)
+    # pred_xy_tensor = tf.Print(pred_xy_tensor, [pred_xy_tensor[:, 14:20, 0]], message='pred_xy', summarize=30)
 
     tens_c1 = K.greater(K.sigmoid(truth_class1_tensor), 0.5)
     tens_c2 = K.greater(K.sigmoid(truth_class2_tensor), 0.5)
@@ -722,10 +733,17 @@ def yolo_v1_loss_multiclass_2(y_true, y_pred):
     c1_loss = yolo_conf_loss_multiclass(truth_class1_tensor, pred_class1_tensor, tens_c1, 2)
     c2_loss = yolo_conf_loss_multiclass(truth_class2_tensor, pred_class2_tensor, tens_c2, 2)
 
+    tf.print("######## YOLO LOSS 2 ########")
+    tf.print(c1_loss, c2_loss)
+    truth_xy_tensor = tf.Print(truth_xy_tensor, [c1_loss], message='c1_loss')
+    truth_xy_tensor = tf.Print(truth_xy_tensor, [c2_loss], message='c2_loss')
+
     xy_loss = yoloxyloss(truth_xy_tensor, pred_xy_tensor, tens_2d)
     wh_loss = yolo_wh_loss(truth_wh_tensor, pred_wh_tensor, tens_2d)
     m_loss = yolo_regressor_loss(truth_m_tensor, pred_m_tensor, tens)
     v_loss = yolo_regressor_loss(truth_v_tensor, pred_v_tensor, tens)
+
+    tf.print(xy_loss, wh_loss, m_loss, v_loss)
 
     # TODO: Check if 2 * cX_loss is a good value
     loss = 2.0 * c1_loss + 2.0 * c2_loss + 0.25 * xy_loss + 0.25 * wh_loss + 1.5 * m_loss + 1.25 * v_loss  # loss v1

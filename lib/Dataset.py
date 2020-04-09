@@ -147,6 +147,7 @@ class UnrealDatasetDepthSupervised(UnrealDataset):
                 self.training_seqs[directory] = \
                     PixelwiseSequenceWithObstacles(os.path.join(seq_dir, 'rgb'),
                                                    self.config.img_extension,
+                                                   obs_extension=self.config.obs_extension,
                                                    gt_directory=os.path.join(seq_dir, 'depth'),
                                                    obstacles_directory=os.path.join(seq_dir, 'obstacles_20m'),
                                                    is_grayscale=False,
@@ -157,6 +158,7 @@ class UnrealDatasetDepthSupervised(UnrealDataset):
                 self.test_seqs[directory] = \
                     PixelwiseSequenceWithObstacles(os.path.join(seq_dir, 'rgb'),
                                                    self.config.img_extension,
+                                                   obs_extension=self.config.obs_extension,
                                                    gt_directory=os.path.join(seq_dir, 'depth'),
                                                    obstacles_directory=os.path.join(seq_dir, 'obstacles_20m'),
                                                    is_grayscale=False,
@@ -194,8 +196,9 @@ class SoccerFieldDatasetDepthSupervised(SoccerFieldDataset):
                 self.training_seqs[directory] = \
                     PixelwiseSequenceWithObstacles(os.path.join(seq_dir, 'rgb'),
                                                    self.config.img_extension,
+                                                   obs_extension=self.config.obs_extension,
                                                    gt_directory=os.path.join(seq_dir, 'depth'),
-                                                   obstacles_directory=os.path.join(seq_dir, 'obstacles_10m'),
+                                                   obstacles_directory=os.path.join(seq_dir, 'obstacles'),
                                                    is_grayscale=False,
                                                    name='sd_train/' + directory)
 
@@ -204,8 +207,9 @@ class SoccerFieldDatasetDepthSupervised(SoccerFieldDataset):
                 self.test_seqs[directory] = \
                     PixelwiseSequenceWithObstacles(os.path.join(seq_dir, 'rgb'),
                                                    self.config.img_extension,
+                                                   obs_extension=self.config.obs_extension,
                                                    gt_directory=os.path.join(seq_dir, 'depth'),
-                                                   obstacles_directory=os.path.join(seq_dir, 'obstacles_10m'),
+                                                   obstacles_directory=os.path.join(seq_dir, 'obstacles'),
                                                    is_grayscale=False,
                                                    name='sd_test/' + directory)
 

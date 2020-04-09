@@ -32,6 +32,7 @@ data_arg.add_argument('--input_width', type=int, default=256)
 
 data_arg.add_argument('--input_channel', type=int, default=3)
 data_arg.add_argument('--img_extension', type=str, default="png")
+data_arg.add_argument('--obs_extension', type=str, default="txt")
 
 #JMOD2 param
 jmod2_arg = add_argument_group('JMOD2')
