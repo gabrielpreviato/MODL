@@ -229,9 +229,9 @@ class MODL2():
             for i, rgb in enumerate(self.tb_images_X):
                 print("In log_depth_images, i:", i, rgb.shape)
                 test_pred = self.model.predict(rgb)
-                depth_pred = test_pred[i][0]
-                print("Pred, i:", i, test_pred.shape)
-                print("Depth Pred, i:", i, depth_pred)
+                depth_pred = test_pred[0]
+                print("Pred, i:", i, test_pred)
+                print("Depth Pred, i:", i, depth_pred.shape)
                 print("Depth True, i:", i, self.tb_images_y[i].shape)
                 tf.summary.image("depth_pred_%i" % i, depth_pred, step=batch)
                 tf.summary.image("depth_true_%i" % i, self.tb_images_y[i], step=batch)
