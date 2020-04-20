@@ -216,7 +216,7 @@ class MODL2():
         self.tb_images_X = None
         self.tb_images_y = None
         self.tb_images_len = 1
-        self.batches_per_test = 100
+        self.batches_per_test = 10
 
         self.file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'depth'))
     
@@ -227,8 +227,13 @@ class MODL2():
         # Use the model to predict the values from the validation dataset.
         with self.file_writer_depth.as_default():
             for i, rgb in enumerate(self.tb_images_X):
-                test_pred = self.model.predict(rgb)[0][0]
-                tf.summary.image("depth_pred_%i" % i, test_pred, step=batch)
+                print("In log_depth_images, i:", i, rgb.shape)
+                test_pred = self.model.predict(rgb)
+                depth_pred = test_pred[i][0]
+                print("Pred, i:", i, test_pred.shape)
+                print("Depth Pred, i:", i, depth_pred)
+                print("Depth True, i:", i, self.tb_images_y[i].shape)
+                tf.summary.image("depth_pred_%i" % i, depth_pred, step=batch)
                 tf.summary.image("depth_true_%i" % i, self.tb_images_y[i], step=batch)
     
     def load_dataset(self):
@@ -243,8 +248,8 @@ class MODL2():
         self.tb_set_gen = UE4DataGenerator(self.config, X_test, y_test, 1, self.input_dim, self.depth_dim)
         self.tb_images_indexes = self.rng.integers(len(X_test), size=1)[0]
 
-        self.tb_images_X = [np.expand_dims(self.tb_set_gen[self.tb_images_indexes][0], 0)]
-        self.tb_images_y = [np.expand_dims(self.tb_set_gen[self.tb_images_indexes][1][0], 0)]
+        self.tb_images_X = [self.tb_set_gen[self.tb_images_indexes][0]]
+        self.tb_images_y = [self.tb_set_gen[self.tb_images_indexes][1][0]]
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
