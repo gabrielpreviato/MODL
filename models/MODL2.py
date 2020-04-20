@@ -240,10 +240,11 @@ class MODL2():
         X_test, y_test = self.test_dataset.get_test_dataset()
         self.validation_set_gen = UE4DataGenerator(self.config, X_test, y_test, self.config.batch_size, self.input_dim, self.depth_dim)
 
-        self.tb_images_indexes = self.rng.integers(len(X_test)/self.config.batch_size, size=1)[0]
+        self.tb_set_gen = UE4DataGenerator(self.config, X_test, y_test, 1, self.input_dim, self.depth_dim)
+        self.tb_images_indexes = self.rng.integers(len(X_test), size=1)[0]
 
-        self.tb_images_X = np.expand_dims(self.validation_set_gen[self.tb_images_indexes][0], 0)
-        self.tb_images_y = np.expand_dims(self.validation_set_gen[self.tb_images_indexes][1], 0)
+        self.tb_images_X = np.expand_dims(self.tb_set_gen[self.tb_images_indexes][0], 0)
+        self.tb_images_y = np.expand_dims(self.tb_set_gen[self.tb_images_indexes][1], 0)
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
