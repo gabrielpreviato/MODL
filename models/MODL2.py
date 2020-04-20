@@ -218,7 +218,7 @@ class MODL2():
         self.tb_images_len = 1
         self.batches_per_test = 100
 
-        self.file_writer_depth = tf.summary.create_file_writer(self.config.tensorboard_dir + '/depth')
+        self.file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'depth'))
     
     def log_depth_images(self, batch, logs):
         if batch % self.batches_per_test != 0:
@@ -244,7 +244,7 @@ class MODL2():
         self.tb_images_indexes = self.rng.integers(len(X_test), size=1)[0]
 
         self.tb_images_X = np.expand_dims(self.tb_set_gen[self.tb_images_indexes][0], 0)
-        self.tb_images_y = np.expand_dims(self.tb_set_gen[self.tb_images_indexes][1], 0)
+        self.tb_images_y = np.expand_dims(self.tb_set_gen[self.tb_images_indexes][1][0], 0)
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
