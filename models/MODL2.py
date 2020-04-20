@@ -210,6 +210,26 @@ class MODL2():
 
         self.input_dim = (self.config.input_height, self.config.input_width, self.config.input_channel)
         self.depth_dim = (self.config.input_height, self.config.input_width, 1)
+
+        self.rng = np.random.default_rng()
+        self.tb_images_indexes = None
+        self.tb_images_X = None
+        self.tb_images_y = None
+        self.tb_images_len = 1
+        self.batches_per_test = 100
+
+        self.file_writer_depth = tf.summary.create_file_writer(self.config.tensorboard_dir + '/depth')
+    
+    def log_depth_images(self, batch, logs):
+        if batch % self.batches_per_test != 0:
+            return
+    
+        # Use the model to predict the values from the validation dataset.
+        with self.file_writer_depth.as_default():
+            for i, rgb in enumerate(self.tb_images_X):
+                test_pred = self.model.predict(rgb)[0][0]
+                tf.summary.image("depth_pred_%i" % i, test_pred, step=batch)
+                tf.summary.image("depth_true_%i" % i, self.tb_images_y[i], step=batch)
     
     def load_dataset(self):
         self.train_dataset = UE4Dataset(self.config, self.config.data_set_dir, self.config.data_train_dirs, 'png', 'pfm', 'json')
@@ -219,6 +239,10 @@ class MODL2():
         self.test_dataset = UE4Dataset(self.config, self.config.data_set_dir, self.config.data_test_dirs, 'png', 'pfm', 'json')
         X_test, y_test = self.test_dataset.get_test_dataset()
         self.validation_set_gen = UE4DataGenerator(self.config, X_test, y_test, self.config.batch_size, self.input_dim, self.depth_dim)
+
+        self.tb_images_indexes = self.rng.integers(len(X_test), size=self.tb_images_len)
+        self.tb_images_X = [X_test[i] for i in self.tb_images_indexes]
+        self.tb_images_y = [y_test[i] for i in self.tb_images_indexes]
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
@@ -388,12 +412,13 @@ class MODL2():
             layer.trainable = True
 
         # tf.keras.utils.plot_model(self.model, show_shapes=True, to_file=os.path.join(self.config.model_dir, 'model_structure.png'))
-        checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'
+        checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'        
         callbacks = [
             tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
             tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
-                                                 verbose=1)
+                                                 verbose=1),
+            keras.callbacks.LambdaCallback(on_batch_end=self.log_depth_images)
         ]
         history = self.model.fit(
                             x=self.training_set_gen,
@@ -412,3 +437,4 @@ class MODL2():
 # python test.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=1 --gpu_memory_fraction=0.8 --data_test_dirs=test5 --data_train_dirs=test6 --num_epochs=10
 # python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=8 --gpu_memory_fraction=0.9 --data_test_dirs=test5 --data_train_dirs=test6 --num_epochs=10 --exp-name="5vs0.05lr1-5adam-sum"
 # python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=8 --gpu_memory_fraction=0.9 --data_test_dirs=test5 --data_train_dirs=test6 --num_epochs=50 --exp_name="5vs0.05lr1-5adam-sum(10~50)" --resume_training=True --weights_path="C:\Users\Previato\MODL\logs\5vs0.05-loss3-lr5-5adam-sum__320_512_test_dirs_test5_2020-04-16_10-50-06\tensorboard\cp-0010.ckpt"
+# python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='/home/previato/dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=16 --gpu_memory_fraction=0.9 --data_test_dirs=test6 --data_train_dirs=test6 --num_epochs=50 --exp_name="5vs0.05lr1-5adam-sum-metrics"
