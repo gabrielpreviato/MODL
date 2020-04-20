@@ -242,8 +242,8 @@ class MODL2():
 
         self.tb_images_indexes = self.rng.integers(len(X_test)/self.config.batch_size, size=1)[0]
 
-        self.tb_images_X = tf.expand_dims(self.validation_set_gen[self.tb_images_indexes][0], 0)
-        self.tb_images_y = tf.expand_dims(self.validation_set_gen[self.tb_images_indexes][1], 0)
+        self.tb_images_X = np.expand_dims(self.validation_set_gen[self.tb_images_indexes][0], 0)
+        self.tb_images_y = np.expand_dims(self.validation_set_gen[self.tb_images_indexes][1], 0)
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
