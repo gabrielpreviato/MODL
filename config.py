@@ -24,11 +24,14 @@ data_arg.add_argument('--use_subsampled', type=str2bool, default=False)
 data_arg.add_argument('--compute_mean', type=str2bool, default=False)
 
 data_arg.add_argument('--data_main_dir', type=str, default='')
-data_arg.add_argument('--data_train_dirs', type=str, nargs='+', default=['ssnda_01', 'ssnda_02', 'ssnda_03', 'ssnda_04'])
-data_arg.add_argument('--data_test_dirs', type=str, nargs='+', default=['ssnda_05'])
+# data_arg.add_argument('--data_train_dirs', type=str, nargs='+', default=['ssnda_01', 'ssnda_02', 'ssnda_03', 'ssnda_04'])
+# data_arg.add_argument('--data_test_dirs', type=str, nargs='+', default=['ssnda_05'])
+data_arg.add_argument('--data_train_dirs', type=str, default='ssnda_01')
+data_arg.add_argument('--data_test_dirs', type=str, default='ssnda_05')
 
 data_arg.add_argument('--input_height', type=int, default=160)
 data_arg.add_argument('--input_width', type=int, default=256)
+data_arg.add_argument('--cell_size', type=int, default=32)
 
 data_arg.add_argument('--input_channel', type=int, default=3)
 data_arg.add_argument('--img_extension', type=str, default="png")

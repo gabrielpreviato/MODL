@@ -11,41 +11,43 @@ import re
 import sys
 
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
+# import tensorflow.contrib.slim as slim
 
 import scipy.io as sio
 loadmat = sio.loadmat
 
 
-def load_pfm(file):
+def load_pfm(filename):
     color = None
     width = None
     height = None
     scale = None
     endian = None
 
-    header = file.readline().decode('utf-8').rstrip()
-    if header == 'PF':
-        color = True    
-    elif header == 'Pf':
-        color = False
-    else:
-        raise Exception('Not a PFM file.')
+    with open(filename, 'rb') as file:
+      header = file.readline().decode('utf-8').rstrip()
+      if header == 'PF':
+          color = True    
+      elif header == 'Pf':
+          color = False
+      else:
+          raise Exception('Not a PFM file.')
 
-    dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline())
-    if dim_match:
-        width, height = map(int, dim_match.groups())
-    else:
-        raise Exception('Malformed PFM header.')
+      dim_match = re.match(r'^(\d+)\s(\d+)\s$', file.readline().decode('utf-8'))
+      if dim_match:
+          width, height = map(int, dim_match.groups())
+      else:
+          raise Exception('Malformed PFM header.')
 
-    scale = float(file.readline().decode('utf-8').rstrip())
-    if scale < 0: # little-endian
-        endian = '<'
-        scale = -scale
-    else:
-        endian = '>' # big-endian
+      scale = float(file.readline().decode('utf-8').rstrip())
+      if scale < 0: # little-endian
+          endian = '<'
+          scale = -scale
+      else:
+          endian = '>' # big-endian
 
-    data = np.fromfile(file, endian + 'f')
+      data = np.fromfile(file, endian + 'f')
+
     shape = (height, width, 3) if color else (height, width)
     return np.reshape(data, shape)
 
@@ -82,9 +84,9 @@ def prepare_dirs(config):
 def get_time():
   return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-def show_all_variables():
-  model_vars = tf.trainable_variables()
-  slim.model_analyzer.analyze_vars(model_vars, print_info=True)
+# def show_all_variables():
+#   model_vars = tf.trainable_variables()
+#   slim.model_analyzer.analyze_vars(model_vars, print_info=True)
 
 def img_tile(imgs, aspect_ratio=1.0, tile_shape=None, border=1,
              border_color=0):

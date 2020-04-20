@@ -51,6 +51,7 @@ class TensorBoardCustom(Callback):
                                      self.Y_test[0], max_outputs=self.config.max_image_summary)
 
         self.merged = tf.summary.merge_all()
+        print('self.merged', self.merged)
 
         if self.write_graph:
             self.writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
