@@ -223,6 +223,8 @@ class MODL2():
         self.tb_images_len = 1
         self.batches_per_test = 10
 
+        self.tb_count = 0
+
         file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'train', 'depth'))
     
     def log_depth_images(self, batch, logs):
@@ -232,7 +234,7 @@ class MODL2():
             return
     
         # Use the model to predict the values from the validation dataset.
-        print(file_writer_depth)
+        # print(file_writer_depth)
         for i, rgb in enumerate(self.tb_images_X):
             # print("In log_depth_images, i:", i, rgb.shape)
             test_pred = self.model.predict(rgb)
@@ -244,12 +246,14 @@ class MODL2():
             # print("Depth Pred, i:", i, depth_pred.shape)
             # print("Depth True, i:", i, self.tb_images_y[i].shape)
             with file_writer_depth.as_default():
-                ret = tf.summary.image("rgb", rgb, step=batch)
-                ret = tf.summary.image("dete05", detec_img_05, step=batch)
-                ret = tf.summary.image("dete075", detec_img_075, step=batch)
-                ret = tf.summary.image("rgb", rgb, step=batch)
-                ret = tf.summary.image("depth_pred", depth_pred, step=batch)
-                ret = tf.summary.image("depth_true", self.tb_images_y[i], step=batch)
+                ret = tf.summary.image("rgb", rgb, step=self.tb_count)
+                ret = tf.summary.image("dete05", detec_img_05, step=self.tb_count)
+                ret = tf.summary.image("dete075", detec_img_075, step=self.tb_count)
+                ret = tf.summary.image("rgb", rgb, step=self.tb_count)
+                ret = tf.summary.image("depth_pred", depth_pred, step=self.tb_count)
+                ret = tf.summary.image("depth_true", self.tb_images_y[i], step=self.tb_count)
+            
+            self.tb_count += 1
 
             
             # tf.summary.flush(writer=self.file_writer_depth)
@@ -445,7 +449,7 @@ class MODL2():
         # tf.keras.utils.plot_model(self.model, show_shapes=True, to_file=os.path.join(self.config.model_dir, 'model_structure.png'))
         checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'        
         callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
+            # tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
             tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
                                                  verbose=1),
