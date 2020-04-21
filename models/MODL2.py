@@ -445,7 +445,7 @@ class MODL2():
         # tf.keras.utils.plot_model(self.model, show_shapes=True, to_file=os.path.join(self.config.model_dir, 'model_structure.png'))
         checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'        
         callbacks = [
-            # tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
+            tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
             tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
                                                  verbose=1),
