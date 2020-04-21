@@ -18,6 +18,9 @@ from lib.UE4DataGenerator import UE4DataGenerator
 import lib.modl_metrics as modl_metrics
 
 
+file_writer_depth = None
+
+
 class YoloV1Error(losses.Loss):
     def yolo_conf_loss(self, y_true, y_pred, t):
         real_y_true = tf.where(t, y_true, K.zeros_like(y_true))
@@ -200,6 +203,8 @@ class NormalError(losses.Loss):
 
 class MODL2():
     def __init__(self, config, shuffle_data=True, is_test=False, test_size=1):
+        global file_writer_depth
+
         self.config = config
         self.model = None
         self.shuffle = shuffle_data
@@ -218,23 +223,36 @@ class MODL2():
         self.tb_images_len = 1
         self.batches_per_test = 10
 
-        self.file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'depth'))
+        file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'train', 'depth'))
     
     def log_depth_images(self, batch, logs):
+        global file_writer_depth
+
         if batch % self.batches_per_test != 0:
             return
     
         # Use the model to predict the values from the validation dataset.
-        with self.file_writer_depth.as_default():
-            for i, rgb in enumerate(self.tb_images_X):
-                print("In log_depth_images, i:", i, rgb.shape)
-                test_pred = self.model.predict(rgb)
-                depth_pred = test_pred[0]
-                print("Pred, i:", i, test_pred)
-                print("Depth Pred, i:", i, depth_pred.shape)
-                print("Depth True, i:", i, self.tb_images_y[i].shape)
-                tf.summary.image("depth_pred_%i" % i, depth_pred, step=batch)
-                tf.summary.image("depth_true_%i" % i, self.tb_images_y[i], step=batch)
+        print(file_writer_depth)
+        for i, rgb in enumerate(self.tb_images_X):
+            # print("In log_depth_images, i:", i, rgb.shape)
+            test_pred = self.model.predict(rgb)
+            depth_pred = test_pred[0]
+
+            detec_img_05 = np.expand_dims(self.detec_img_from_pred(rgb, test_pred, self.tb_y[i], 0.5), 0)
+            detec_img_075 = np.expand_dims(self.detec_img_from_pred(rgb, test_pred, self.tb_y[i], 0.75), 0)
+            # print("Pred, i:", i, test_pred)
+            # print("Depth Pred, i:", i, depth_pred.shape)
+            # print("Depth True, i:", i, self.tb_images_y[i].shape)
+            with file_writer_depth.as_default():
+                ret = tf.summary.image("rgb", rgb, step=batch)
+                ret = tf.summary.image("dete05", detec_img_05, step=batch)
+                ret = tf.summary.image("dete075", detec_img_075, step=batch)
+                ret = tf.summary.image("rgb", rgb, step=batch)
+                ret = tf.summary.image("depth_pred", depth_pred, step=batch)
+                ret = tf.summary.image("depth_true", self.tb_images_y[i], step=batch)
+
+            
+            # tf.summary.flush(writer=self.file_writer_depth)
     
     def load_dataset(self):
         self.train_dataset = UE4Dataset(self.config, self.config.data_set_dir, self.config.data_train_dirs, 'png', 'pfm', 'json')
@@ -250,6 +268,7 @@ class MODL2():
 
         self.tb_images_X = [self.tb_set_gen[self.tb_images_indexes][0]]
         self.tb_images_y = [self.tb_set_gen[self.tb_images_indexes][1][0]]
+        self.tb_y = [self.tb_set_gen[self.tb_images_indexes][1]]
     
     def define_base_architecture(self):
         input = keras.Input(shape=(self.config.input_height,
@@ -359,52 +378,57 @@ class MODL2():
             cv2.imwrite('test/test_100_%i.png' % i, depth * 100)
             cv2.imwrite('test/test_255_%i.png' % i, depth * 255)
 
-            cp_img = np.copy(X[0])
-            obs = y_pred[1]
-            obs_true = y_true[1]
-
-            # print(i, ':', indexes)
-            print(i, ':', obs_true[0][obs_true[0][:, 6] > 0.5])
-
-            x_grid_count = self.config.input_width / self.config.cell_size
-            y_grid_count = self.config.input_height / self.config.cell_size
-            grid_count = int(x_grid_count * y_grid_count)
-
-            for j in range(grid_count):
-                if scipy.special.expit(obs[0][j][0]) >= 0.5:
-                    x, y, w, h = obs[0][j][1:5]
-                    x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
-                    x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
-                    
-                    y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
-                    y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
-
-                    # print(x_min)
-                    # print(x_max)
-                    # print(y_min)
-                    # print(y_max)
-
-                    cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
-                
-                if obs_true[0][j][0] > 0.75:
-                    x, y, w, h = obs_true[0][j][1:5]
-                    x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
-                    x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
-                    
-                    y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
-                    y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
-
-                    print('######')
-                    print(j%x_grid_count)
-                    print(j//x_grid_count)
-                    print((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size)
-                    print((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size)
-                    print(w*self.config.input_width)
-                    print(h*self.config.input_height)
-
-                    cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+            
             
             cv2.imwrite('test/test_rgb_%i.png' % i, cp_img)
+    
+    def detec_img_from_pred(self, X, y_pred, y_true, threshold):
+        cp_img = np.copy(X[0])
+        obs = y_pred[1]
+        obs_true = y_true[1]
+
+        # print(i, ':', indexes)
+        # print(i, ':', obs_true[0][obs_true[0][:, 6] > 0.5])
+
+        x_grid_count = self.config.input_width / self.config.cell_size
+        y_grid_count = self.config.input_height / self.config.cell_size
+        grid_count = int(x_grid_count * y_grid_count)
+
+        for j in range(grid_count):
+            if scipy.special.expit(obs[0][j][0]) >= threshold:
+                x, y, w, h = obs[0][j][1:5]
+                x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
+                x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
+                
+                y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
+                y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
+
+                # print(x_min)
+                # print(x_max)
+                # print(y_min)
+                # print(y_max)
+
+                cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
+            
+            if obs_true[0][j][0] > 0.75:
+                x, y, w, h = obs_true[0][j][1:5]
+                x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
+                x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
+                
+                y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
+                y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
+
+                # print('######')
+                # print(j%x_grid_count)
+                # print(j//x_grid_count)
+                # print((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size)
+                # print((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size)
+                # print(w*self.config.input_width)
+                # print(h*self.config.input_height)
+
+                cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        
+        return cp_img
 
     def train(self):
         self.load_dataset()
@@ -421,7 +445,7 @@ class MODL2():
         # tf.keras.utils.plot_model(self.model, show_shapes=True, to_file=os.path.join(self.config.model_dir, 'model_structure.png'))
         checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'        
         callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
+            # tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
             tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
                                                  save_weights_only=True,
                                                  verbose=1),
