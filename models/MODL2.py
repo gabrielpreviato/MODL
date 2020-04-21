@@ -342,7 +342,7 @@ class MODL2():
         self.model.summary()
     
     def define_optimizer(self):
-        self.optimizer = keras.optimizers.Adam(learning_rate=5e-5)
+        self.optimizer = keras.optimizers.Adam(learning_rate=1e-5)
     
     def build_model(self):
         self.define_architecture()
