@@ -24,13 +24,13 @@ file_writer_depth = None
 class YoloV1Error(losses.Loss):
     def yolo_conf_loss(self, y_true, y_pred, t):
         real_y_true = tf.where(t, y_true, K.zeros_like(y_true))
-        pobj = K.sigmoid(y_pred)
+        pobj = K.tanh(y_pred)
         lo = K.square(real_y_true - pobj)
         value_if_true = 5.0 * lo
         value_if_false = 0.05 * lo
         loss1 = tf.where(t, value_if_true, value_if_false)
 
-        loss = K.sum(loss1)
+        loss = K.mean(loss1)
         return loss
     
     def yoloxyloss(self, y_true, y_pred, t):
@@ -97,7 +97,7 @@ class YoloV1Error(losses.Loss):
         # loss = 2.0 * conf_loss + 0.25 * xy_loss + 0.25 * wh_loss + 1.5 * m_loss + 1.25 * v_loss  # loss v1
         # loss = 2.0 * conf_loss + 0.1 * xy_loss + 1.0 * wh_loss + 5.0 * m_loss + 2.5 * v_loss  # loss v2
 
-        return loss
+        return K.minimum(loss, 100)
 
 class RootMeanSquaredError(losses.Loss):
     def call(self, y_true, y_pred):
@@ -176,7 +176,7 @@ class NormalError(losses.Loss):
         first_log = K.log(y_pred_clipped + 1.)
         second_log = K.log(y_true_clipped + 1.)
 
-        log_term = K.sqrt(K.mean(K.square(first_log - second_log), axis=-1) + 0.00001)
+        log_term = K.mean(K.square(first_log - second_log), axis=-1) + 0.00001
 
         dot_term_x = K.sum(normals[:,:,:,:] * grad_x[:,:,:,:], axis=-1, keepdims=True)
         dot_term_y = K.sum(normals[:,:,:,:] * grad_y[:,:,:,:], axis=-1, keepdims=True)
@@ -221,7 +221,7 @@ class MODL2():
         self.tb_images_X = None
         self.tb_images_y = None
         self.tb_images_len = 1
-        self.batches_per_test = 10
+        self.batches_per_test = 100
 
         self.tb_count = 0
 
@@ -240,18 +240,22 @@ class MODL2():
             test_pred = self.model.predict(rgb)
             depth_pred = test_pred[0]
 
-            detec_img_05 = np.expand_dims(self.detec_img_from_pred(rgb, test_pred, self.tb_y[i], 0.5), 0)
-            detec_img_075 = np.expand_dims(self.detec_img_from_pred(rgb, test_pred, self.tb_y[i], 0.75), 0)
+            channels = tf.unstack(rgb, axis=-1)
+            image = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
+            
+            detec_img_05 = np.expand_dims(self.detec_img_from_pred(image, test_pred, self.tb_y[i], 0.5), 0)
+            detec_img_075 = np.expand_dims(self.detec_img_from_pred(image, test_pred, self.tb_y[i], 0.75), 0)
             # print("Pred, i:", i, test_pred)
             # print("Depth Pred, i:", i, depth_pred.shape)
             # print("Depth True, i:", i, self.tb_images_y[i].shape)
+            # print(K.mean(image))
             with file_writer_depth.as_default():
-                ret = tf.summary.image("rgb", rgb, step=self.tb_count)
+                ret = tf.summary.image("rgb", image, step=self.tb_count)
                 ret = tf.summary.image("dete05", detec_img_05, step=self.tb_count)
                 ret = tf.summary.image("dete075", detec_img_075, step=self.tb_count)
-                ret = tf.summary.image("rgb", rgb, step=self.tb_count)
                 ret = tf.summary.image("depth_pred", depth_pred, step=self.tb_count)
                 ret = tf.summary.image("depth_true", self.tb_images_y[i], step=self.tb_count)
+                file_writer_depth.flush()
             
             self.tb_count += 1
 
@@ -324,13 +328,13 @@ class MODL2():
         x = layers.Convolution2D(512, (3, 3), activation='relu', padding='same', name='det_conv5')(x)
 
         x = layers.Convolution2D(280, (3, 3), activation='relu', padding='same', name='det_conv6')(x)
-        # x = layers.Convolution2D(280, (3, 3), activation='relu', padding='same', name='det_conv7')(x)
+        x = layers.Convolution2D(280, (3, 3), activation='relu', padding='same', name='det_conv7')(x)
         x = layers.Reshape((grid_count, 7, 160), name='det_reshape1')(x)
 
         x = layers.Convolution2D(160, (3, 3), activation='relu', padding='same', name='det_conv8')(x)
         x = layers.Convolution2D(40, (3, 3), activation='relu', padding='same', name='det_conv9')(x)
 
-        x = layers.Convolution2D(1, (3, 3), activation='linear', padding='same', name='det_conv10')(x)
+        x = layers.Convolution2D(1, (3, 3), activation='relu', padding='same', name='det_conv10')(x)
 
         out_detection = layers.Reshape((grid_count, 7), name='detection_output')(x)
 
@@ -346,7 +350,7 @@ class MODL2():
         self.model.summary()
     
     def define_optimizer(self):
-        self.optimizer = keras.optimizers.Adam(learning_rate=1e-5)
+        self.optimizer = keras.optimizers.Adam(learning_rate=1e-4)
     
     def build_model(self):
         self.define_architecture()
@@ -412,13 +416,16 @@ class MODL2():
                 # print(y_min)
                 # print(y_max)
 
-                cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
-            
+                if obs_true[0][j][0] > 0.75:
+                    cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (255, 0, 255), 2)
+                else:
+                    cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
+
             if obs_true[0][j][0] > 0.75:
                 x, y, w, h = obs_true[0][j][1:5]
                 x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
                 x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
-                
+                    
                 y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
                 y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
 
@@ -449,10 +456,13 @@ class MODL2():
         # tf.keras.utils.plot_model(self.model, show_shapes=True, to_file=os.path.join(self.config.model_dir, 'model_structure.png'))
         checkpoint_path = self.config.tensorboard_dir + '/cp-{epoch:04d}.ckpt'        
         callbacks = [
-            # tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=4, write_images=True),
+            tf.keras.callbacks.TensorBoard(log_dir=self.config.tensorboard_dir, update_freq=1),
             tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
-                                                 save_weights_only=True,
-                                                 verbose=1),
+                                                monitor='validation_loss', 
+                                                save_weights_only=True,
+                                                save_best_only=True,
+                                                mode='max',
+                                                verbose=1),
             keras.callbacks.LambdaCallback(on_batch_end=self.log_depth_images)
         ]
         history = self.model.fit(

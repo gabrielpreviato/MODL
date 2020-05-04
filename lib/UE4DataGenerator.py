@@ -92,7 +92,8 @@ class UE4DataGenerator(keras.utils.Sequence):
 
         for i, filename in enumerate(zip(x_temp, y_temp)):
             # Store sample
-            X[i,] = cv2.imread(filename[0]) # / 255.0
+            X[i,] = cv2.imread(filename[0]) / 255.0
+            # print(X[i].mean())
 
             # Store class
             Y_depth[i] = np.expand_dims(np.clip(load_pfm(filename[1][0]), 0, 255.0), axis=-1) / 255.0
