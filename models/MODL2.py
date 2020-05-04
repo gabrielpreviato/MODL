@@ -362,13 +362,13 @@ class MODL2():
                             loss_weights=[1.0, 1.0])
     
     def test(self):
-        tf.config.set_visible_devices([], 'GPU')
+        # tf.config.set_visible_devices([], 'GPU')
 
         self.load_dataset()
 
         self.build_model()
 
-        self.model.load_weights("cp-0060.ckpt")
+        self.model.load_weights("variables")
 
         # X_test, y_test = self.test_dataset.get_test_dataset()
         # self.test_set_gen = UE4DataGenerator(self.config, X_test, y_test, self.config.batch_size, self.input_dim, self.depth_dim, is_test=True, test_size=4)
