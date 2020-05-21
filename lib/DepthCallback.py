@@ -7,6 +7,8 @@ import keras.backend as K
 from pkg_resources import parse_version
 import math
 from keras.models import Model
+import scipy
+import cv2
 
 class TensorBoardCustom(Callback):
     def __init__(self, config, x_test, y_test, log_dir='./logs',
@@ -29,6 +31,54 @@ class TensorBoardCustom(Callback):
         self.global_step = 0
         self.model = []
         self.sess = []
+    
+    def detec_img_from_pred(self, X, y_pred, y_true, threshold):
+        cp_img = np.copy(X[0])
+        obs = y_pred
+        obs_true = y_true[1]
+
+        # print(i, ':', indexes)
+        # print(i, ':', obs_true[0][obs_true[0][:, 6] > 0.5])
+
+        x_grid_count = self.config.input_width / self.config.cell_size
+        y_grid_count = self.config.input_height / self.config.cell_size
+        grid_count = int(x_grid_count * y_grid_count)
+
+        for j in range(grid_count):
+            if scipy.special.expit(obs[0][j][0]) >= threshold:
+                x, y, w, h = obs[0][j][1:5]
+                x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
+                x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
+                
+                y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
+                y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
+
+                # print(x_min)
+                # print(x_max)
+                # print(y_min)
+                # print(y_max)
+
+                cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
+            
+            if obs_true[0][j][0] > 0.75:
+                x, y, w, h = obs_true[0][j][1:5]
+                x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
+                x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
+                
+                y_min = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size - h*self.config.input_height/2)
+                y_max = int((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size + h*self.config.input_height/2)
+
+                # print('######')
+                # print(j%x_grid_count)
+                # print(j//x_grid_count)
+                # print((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size)
+                # print((j//x_grid_count)*self.config.cell_size + y*self.config.cell_size)
+                # print(w*self.config.input_width)
+                # print(h*self.config.input_height)
+
+                cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        
+        return cp_img
 
     def set_model(self, model):
         self.model = model
@@ -49,6 +99,11 @@ class TensorBoardCustom(Callback):
                                          layer.output, max_outputs=self.config.max_image_summary)
                     tf.summary.image('{}_gt_dem'.format(layer.name),
                                      self.Y_test[0], max_outputs=self.config.max_image_summary)
+                
+                if (layer.name=='detection_output'):
+                    detec = self.detec_img_from_pred(self.X_test, layer.output, self.Y_test, self.config.detector_confidence_thr)
+                    tf.summary.image('{}_estimated_detec'.format(layer.name),
+                                         detec, max_outputs=self.config.max_image_summary)
 
         self.merged = tf.summary.merge_all()
         print('self.merged', self.merged)
@@ -106,7 +161,11 @@ class TensorBoardCustom(Callback):
                 continue
             summary = tf.Summary()
             summary_value = summary.value.add()
-            summary_value.simple_value = value.item()
+            try:
+                summary_value.simple_value = value.item()
+            except AttributeError:
+                summary_value.simple_value = value
+
             summary_value.tag = name
             self.writer.add_summary(summary, epoch)
         self.writer.flush()

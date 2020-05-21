@@ -5,11 +5,13 @@ import json
 
 import tensorflow as tf
 from tensorflow import keras
+import sklearn.preprocessing
 from .utils import load_pfm
 
 class UE4DataGenerator(keras.utils.Sequence):
-    def __init__(self, config, x_set, y_set, batch_size, input_dim, depth_dim, shuffle=True, is_test=False, test_size=1):
+    def __init__(self, config, labels, x_set, y_set, batch_size, input_dim, depth_dim, shuffle=True, is_test=False, test_size=1):
         self.config = config
+        self.num_classes = config.number_classes
 
         x_grid_count = self.config.input_width / self.config.cell_size
         y_grid_count = self.config.input_height / self.config.cell_size
@@ -30,6 +32,8 @@ class UE4DataGenerator(keras.utils.Sequence):
         self.indexes = np.arange(len(self.x))
 
         self.label_dict = {'goal': 1.0, 'ball': 1.0}
+        self.labels = labels
+        self.hot_encoder = sklearn.preprocessing.OneHotEncoder(categories=[self.labels])
 
     def __len__(self):
         if self.is_test:
@@ -67,31 +71,37 @@ class UE4DataGenerator(keras.utils.Sequence):
 
             grid_count = x_grid_count * y_grid_count
 
-            obs = np.zeros(shape=(x_grid_count, y_grid_count, 7), dtype=np.float32)
+            obs = np.zeros(shape=(x_grid_count, y_grid_count, 6 + self.num_classes), dtype=np.float32)
 
             for obstacle in json_obs['objects']:
-                obs[obstacle['x_cell'], obstacle['y_cell'], 0] = self.label_dict[obstacle['label']]
-                obs[obstacle['x_cell'], obstacle['y_cell'], 1] = obstacle['x_cell_position']
-                obs[obstacle['x_cell'], obstacle['y_cell'], 2] = obstacle['y_cell_position']
-                obs[obstacle['x_cell'], obstacle['y_cell'], 3] = obstacle['width'] / image_width
-                obs[obstacle['x_cell'], obstacle['y_cell'], 4] = obstacle['height'] / image_height
-                obs[obstacle['x_cell'], obstacle['y_cell'], 5] = obstacle['mean'] / 255.0
-                obs[obstacle['x_cell'], obstacle['y_cell'], 6] = obstacle['std'] / 255.0
+                obs[obstacle['x_cell'], obstacle['y_cell'], 0:self.num_classes] = self.one_hot_encoder(obstacle['label'])
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes] = obstacle['x_cell_position']
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes + 1] = obstacle['y_cell_position']
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes + 2] = obstacle['width'] / image_width
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes + 3] = obstacle['height'] / image_height
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes + 4] = obstacle['mean'] / 255.0
+                obs[obstacle['x_cell'], obstacle['y_cell'], self.num_classes + 5] = obstacle['std'] / 255.0
                 
         
-        obs = obs.reshape((grid_count, 7), order='F')
+        obs = obs.reshape((grid_count, 6 + self.num_classes), order='F')
         return obs          
+
+    def one_hot_encoder(self, label):
+        a = self.hot_encoder.fit_transform(np.array([label]).reshape(-1, 1)).toarray()
+        # print(a)
+        return a
 
     def __data_generation(self, x_temp, y_temp):
         'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
         # Initialization
-        X = np.empty((self.batch_size, *self.input_dim))
+        X = np.empty((self.batch_size, *self.input_dim), dtype=np.float32)
         Y_depth = np.empty((self.batch_size, *self.depth_dim), dtype=np.float32)
 
-        Y_obs = np.zeros(shape=(self.batch_size, self.grid_count, 7), dtype=np.float32)
+        Y_obs = np.zeros(shape=(self.batch_size, self.grid_count, 6 + self.num_classes), dtype=np.float32)
 
         for i, filename in enumerate(zip(x_temp, y_temp)):
             # Store sample
+            # print(X[i].mean())
             X[i,] = cv2.imread(filename[0]) / 255.0
             # print(X[i].mean())
 

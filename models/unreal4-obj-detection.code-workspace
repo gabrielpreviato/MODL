@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "..\\..\\vrep-dataset_gen"
+		},
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}

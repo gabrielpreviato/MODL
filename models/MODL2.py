@@ -22,6 +22,10 @@ file_writer_depth = None
 
 
 class YoloV1Error(losses.Loss):
+    def __init__(self, num_classes):
+        self.num_classes = num_classes
+        super().__init__()
+
     def yolo_conf_loss(self, y_true, y_pred, t):
         real_y_true = tf.where(t, y_true, K.zeros_like(y_true))
         pobj = K.tanh(y_pred)
@@ -68,30 +72,31 @@ class YoloV1Error(losses.Loss):
         y_pred = ops.convert_to_tensor(y_pred)
         y_true = math_ops.cast(y_true, y_pred.dtype)
 
-        truth_conf_tensor = K.expand_dims(y_true[:, :, 0], 2)  # tf.slice(y_true, [0, 0, 0], [-1,-1, 0])
-        truth_xy_tensor = y_true[:, :, 1:3]  # tf.slice(y_true, [0, 0, 1], [-1,-1, 2])
-        truth_wh_tensor = y_true[:, :, 3:5]  # tf.slice(y_true, [0, 0, 3], [-1, -1, 4])
-        truth_m_tensor = K.expand_dims(y_true[:, :, 5], 2)  # tf.slice(y_true, [0, 0, 5], [-1, -1, 5])
-        truth_v_tensor = K.expand_dims(y_true[:, :, 6], 2)  # tf.slice(y_true, [0, 0, 6], [-1, -1, 6])
+        truth_conf_tensor = K.expand_dims(y_true[:, :, 0:self.num_classes], 2)  # tf.slice(y_true, [0, 0, 0], [-1,-1, 0])
+        truth_xy_tensor = y_true[:, :, self.num_classes:self.num_classes + 2]  # tf.slice(y_true, [0, 0, 1], [-1,-1, 2])
+        truth_wh_tensor = y_true[:, :, self.num_classes + 2:self.num_classes + 4]  # tf.slice(y_true, [0, 0, 3], [-1, -1, 4])
+        truth_m_tensor = K.expand_dims(y_true[:, :, self.num_classes + 5], 2)  # tf.slice(y_true, [0, 0, 5], [-1, -1, 5])
+        truth_v_tensor = K.expand_dims(y_true[:, :, self.num_classes + 6], 2)  # tf.slice(y_true, [0, 0, 6], [-1, -1, 6])
 
-        pred_conf_tensor = K.expand_dims(y_pred[:, :, 0], 2)  # tf.slice(y_pred, [0, 0, 0], [-1, -1, 0])
+        pred_conf_tensor = K.expand_dims(y_pred[:, :, 0:self.num_classes], 2)  # tf.slice(y_pred, [0, 0, 0], [-1, -1, 0])
         # pred_conf_tensor = K.tanh(pred_conf_tensor)
-        pred_xy_tensor = y_pred[:, :, 1:3]  # tf.slice(y_pred, [0, 0, 1], [-1, -1, 2])
-        pred_wh_tensor = y_pred[:, :, 3:5]  # tf.slice(y_pred, [0, 0, 3], [-1, -1, 4])
-        pred_m_tensor = K.expand_dims(y_pred[:, :, 5], 2)  # tf.slice(y_pred, [0, 0, 5], [-1, -1, 5])
-        pred_v_tensor = K.expand_dims(y_pred[:, :, 6], 2)  # tf.slice(y_pred, [0, 0, 6], [-1, -1, 6])
+        pred_xy_tensor = y_pred[:, :, self.num_classes:self.num_classes + 2]  # tf.slice(y_pred, [0, 0, 1], [-1, -1, 2])
+        pred_wh_tensor = y_pred[:, :, self.num_classes + 2:self.num_classes + 4]  # tf.slice(y_pred, [0, 0, 3], [-1, -1, 4])
+        pred_m_tensor = K.expand_dims(y_pred[:, :, self.num_classes + 4], 2)  # tf.slice(y_pred, [0, 0, 5], [-1, -1, 5])
+        pred_v_tensor = K.expand_dims(y_pred[:, :, self.num_classes + 5], 2)  # tf.slice(y_pred, [0, 0, 6], [-1, -1, 6])
 
         # truth_xy_tensor = tf.Print(truth_xy_tensor, [truth_xy_tensor[:, 14:20, 0]], message='truth_xy', summarize=30)
         # pred_xy_tensor = tf.Print(pred_xy_tensor, [pred_xy_tensor[:, 14:20, 0]], message='pred_xy', summarize=30)
 
         tens = K.greater(K.sigmoid(truth_conf_tensor), 0.5)
-        tens_2d = K.concatenate([tens, tens], axis=-1)
+        tens_red = tf.reduce_any(tens, axis=-1)
+        tens_2d = K.concatenate([tens_red, tens_red], axis=-1)
 
         conf_loss = self.yolo_conf_loss(truth_conf_tensor, pred_conf_tensor, tens)
         xy_loss = self.yoloxyloss(truth_xy_tensor, pred_xy_tensor, tens_2d)
         wh_loss = self.yolo_wh_loss(truth_wh_tensor, pred_wh_tensor, tens_2d)
-        m_loss = self.yolo_regressor_loss(truth_m_tensor, pred_m_tensor, tens)
-        v_loss = self.yolo_regressor_loss(truth_v_tensor, pred_v_tensor, tens)
+        m_loss = self.yolo_regressor_loss(truth_m_tensor, pred_m_tensor, tens_red)
+        v_loss = self.yolo_regressor_loss(truth_v_tensor, pred_v_tensor, tens_red)
 
         loss = 1.0 * conf_loss + 0.25 * xy_loss + 0.25 * wh_loss #+ 1.5 * m_loss + 1.25 * v_loss  # loss v3
         # loss = 2.0 * conf_loss + 0.25 * xy_loss + 0.25 * wh_loss + 1.5 * m_loss + 1.25 * v_loss  # loss v1
@@ -225,7 +230,13 @@ class MODL2():
 
         self.tb_count = 0
 
+        self.num_classes = self.config.number_classes
+
         file_writer_depth = tf.summary.create_file_writer(os.path.join(self.config.tensorboard_dir, 'train', 'depth'))
+
+        self.metrics = modl_metrics.MODLMetrics(self.num_classes)
+
+        self.labels = ['ball', 'goal', 'nao']
     
     def log_depth_images(self, batch, logs):
         global file_writer_depth
@@ -265,13 +276,13 @@ class MODL2():
     def load_dataset(self):
         self.train_dataset = UE4Dataset(self.config, self.config.data_set_dir, self.config.data_train_dirs, 'png', 'pfm', 'json')
         X_train, y_train = self.train_dataset.get_train_dataset()
-        self.training_set_gen = UE4DataGenerator(self.config, X_train, y_train, self.config.batch_size, self.input_dim, self.depth_dim)
+        self.training_set_gen = UE4DataGenerator(self.config, self.labels, X_train, y_train, self.config.batch_size, self.input_dim, self.depth_dim)
         
         self.test_dataset = UE4Dataset(self.config, self.config.data_set_dir, self.config.data_test_dirs, 'png', 'pfm', 'json')
         X_test, y_test = self.test_dataset.get_test_dataset()
-        self.validation_set_gen = UE4DataGenerator(self.config, X_test, y_test, self.config.batch_size, self.input_dim, self.depth_dim)
+        self.validation_set_gen = UE4DataGenerator(self.config, self.labels, X_test, y_test, self.config.batch_size, self.input_dim, self.depth_dim)
 
-        self.tb_set_gen = UE4DataGenerator(self.config, X_test, y_test, 1, self.input_dim, self.depth_dim)
+        self.tb_set_gen = UE4DataGenerator(self.config, self.labels, X_test, y_test, 1, self.input_dim, self.depth_dim)
         self.tb_images_indexes = self.rng.integers(len(X_test), size=1)[0]
 
         self.tb_images_X = [self.tb_set_gen[self.tb_images_indexes][0]]
@@ -328,15 +339,15 @@ class MODL2():
         x = layers.Convolution2D(512, (3, 3), activation='relu', padding='same', name='det_conv5')(x)
 
         x = layers.Convolution2D(280, (3, 3), activation='relu', padding='same', name='det_conv6')(x)
-        x = layers.Convolution2D(280, (3, 3), activation='relu', padding='same', name='det_conv7')(x)
-        x = layers.Reshape((grid_count, 7, 160), name='det_reshape1')(x)
+        x = layers.Convolution2D(grid_count * (6 + self.num_classes), (3, 3), activation='relu', padding='same', name='det_conv7')(x)
+        x = layers.Reshape((grid_count, 6 + self.num_classes, 160 * 4), name='det_reshape1')(x)
 
         x = layers.Convolution2D(160, (3, 3), activation='relu', padding='same', name='det_conv8')(x)
         x = layers.Convolution2D(40, (3, 3), activation='relu', padding='same', name='det_conv9')(x)
 
         x = layers.Convolution2D(1, (3, 3), activation='relu', padding='same', name='det_conv10')(x)
 
-        out_detection = layers.Reshape((grid_count, 7), name='detection_output')(x)
+        out_detection = layers.Reshape((grid_count, 6 + self.num_classes), name='detection_output')(x)
 
         self.obs_model = keras.Model(inputs=self.base_model.inputs[0], outputs=out_detection, name='modl2_obs_model')
         self.obs_model.summary()
@@ -356,9 +367,9 @@ class MODL2():
         self.define_architecture()
         self.define_optimizer()
 
-        self.model.compile(loss={'depth_output': NormalError(self.config.batch_size), 'detection_output': YoloV1Error()},
+        self.model.compile(loss={'depth_output': NormalError(self.config.batch_size), 'detection_output': YoloV1Error(self.num_classes)},
                             optimizer=self.optimizer,
-                            metrics={'depth_output': [keras.metrics.MeanSquaredError()], 'detection_output': [modl_metrics.recall, modl_metrics.precision, modl_metrics.iou_metric]},
+                            metrics={'depth_output': [keras.metrics.MeanSquaredError()], 'detection_output': [self.metrics.recall, self.metrics.precision, self.metrics.iou_metric]},
                             loss_weights=[1.0, 1.0])
     
     def test(self):
@@ -377,18 +388,35 @@ class MODL2():
             X, y_true = self.validation_set_gen[i]
             y_pred = self.model.predict(x=X)
 
-            # print(X.shape)
+            print(X.shape)
+            print(X.mean())
+
+            X *= 255
+
+            print(X.shape)
+            print(X.mean())
             # print(y_pred[0].shape)
             # print(y_pred[1].shape)
+
+            # test_pred = self.model.predict(rgb)
+            # depth_pred = y_pred[0] * 255
+
+            channels = tf.unstack(X[0], axis=-1)
+            # image = tf.stack([channels[2], channels[1], channels[0]], axis=-1)
+            image = X[0]
+            
+            detec_img_05 = self.detec_img_from_pred(X, y_pred, y_true, 0.5)
+            detec_img_075 = self.detec_img_from_pred(X, y_pred, y_true, 0.75)
             
             depth = y_pred[0][0]
             print(i, depth.shape, depth.mean())
-            cv2.imwrite('test/test_100_%i.png' % i, depth * 100)
-            cv2.imwrite('test/test_255_%i.png' % i, depth * 255)
-
+            print(image)
+            cv2.imwrite('test2/rgb_%i.png' % i, np.array(image))
+            cv2.imwrite('test2/test_100_%i.png' % i, depth * 100)
+            cv2.imwrite('test2/test_255_%i.png' % i, depth * 255)
             
-            
-            cv2.imwrite('test/test_rgb_%i.png' % i, cp_img)
+            cv2.imwrite('test2/test_detec05_%i.png' % i, detec_img_05)
+            cv2.imwrite('test2/test_detec075_%i.png' % i, detec_img_075)
     
     def detec_img_from_pred(self, X, y_pred, y_true, threshold):
         cp_img = np.copy(X[0])
@@ -403,8 +431,8 @@ class MODL2():
         grid_count = int(x_grid_count * y_grid_count)
 
         for j in range(grid_count):
-            if scipy.special.expit(obs[0][j][0]) >= threshold:
-                x, y, w, h = obs[0][j][1:5]
+            if max(scipy.special.expit(obs[0][j][0:self.num_classes])) >= threshold:
+                x, y, w, h = obs[0][j][self.num_classes:self.num_classes+4]
                 x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
                 x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
                 
@@ -416,13 +444,13 @@ class MODL2():
                 # print(y_min)
                 # print(y_max)
 
-                if obs_true[0][j][0] > 0.75:
+                if max(obs_true[0][j][0:self.num_classes]) > 0.75:
                     cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (255, 0, 255), 2)
                 else:
                     cv2.rectangle(cp_img, (x_min, y_min), (x_max, y_max), (0, 0, 255), 2)
 
-            if obs_true[0][j][0] > 0.75:
-                x, y, w, h = obs_true[0][j][1:5]
+            if max(obs_true[0][j][0:self.num_classes]) > 0.75:
+                x, y, w, h = obs_true[0][j][self.num_classes:self.num_classes+4]
                 x_min = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size - w*self.config.input_width/2)
                 x_max = int((j%x_grid_count)*self.config.cell_size + x*self.config.cell_size + w*self.config.input_width/2)
                     
@@ -483,3 +511,4 @@ class MODL2():
 # python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=8 --gpu_memory_fraction=0.9 --data_test_dirs=test5 --data_train_dirs=test6 --num_epochs=10 --exp-name="5vs0.05lr1-5adam-sum"
 # python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=8 --gpu_memory_fraction=0.9 --data_test_dirs=test5 --data_train_dirs=test6 --num_epochs=50 --exp_name="5vs0.05lr1-5adam-sum(10~50)" --resume_training=True --weights_path="C:\Users\Previato\MODL\logs\5vs0.05-loss3-lr5-5adam-sum__320_512_test_dirs_test5_2020-04-16_10-50-06\tensorboard\cp-0010.ckpt"
 # python train.py --number_classes=2 --is_deploy=False --is_train=True --data_set_dir='/home/previato/dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=16 --gpu_memory_fraction=0.9 --data_test_dirs=test6 --data_train_dirs=test6 --num_epochs=50 --exp_name="5vs0.05lr1-5adam-sum-metrics"
+# python train.py --number_classes=3 --is_deploy=False --is_train=True --data_set_dir='E:\\Dropbox\\IC\\dataset' --input_height=320 --input_width=512 --cell_size=32 --obs_extension='json' --batch_size=8 --gpu_memory_fraction=0.8 --data_test_dirs=test9 --data_train_dirs=test9 --num_epochs=50 --exp_name="3c"
